@@ -1,12 +1,12 @@
 // Dependencies
-var express = require("express");
 
-// Require request and cheerio. This makes the scraping possible
+//Scraping Tools
 var request = require("request");
 var cheerio = require("cheerio");
-
+//Server & Database tools
+var express = require("express");
 var bodyParser = require("body-parser");
-
+var logger = require("morgan");
 var mongoose = require("mongoose");
 
 // Set mongoose to leverage built in JavaScript ES6 Promises
@@ -15,7 +15,8 @@ mongoose.Promise = Promise;
 // Initialize Express
 var app = express();
 
-//use body parser with the app
+//setting up morgan and body-parser.
+app.use(logger("dev"));
 app.use(bodyParser.urlencoded({
     extended: false
 }));
@@ -60,46 +61,80 @@ app.get("/all", function(req, res) {
     });
 });
 
-// Scrape data from one site and place it into the mongodb db
+// A GET request to scrape the echojs website
 app.get("/scrape", function(req, res) {
-    // Make a request for the news section of ycombinator
-    request("https://www.cnet.com", function(error, response, html) {
-        // Load the html body from request into cheerio
-        var $ = cheerio.load(html);
-        // For each element with a "title" class
-        $(".tag-recency-1").each(function(i, element) {
-            // Save the text of each link enclosed in the current element
-            var title = $(this).children("a").text();
-            // Save the href value of each link enclosed in the current element
-            var link = $(this).children("a").attr("href");
+  // First, we grab the body of the html with request
+  request("http://www.echojs.com/", function(error, response, html) {
+    // Then, we load that into cheerio and save it to $ for a shorthand selector
+    var $ = cheerio.load(html);
+    // Now, we grab every h2 within an article tag, and do the following:
+    $("article h2").each(function(i, element) {
 
-            // If this title element had both a title and a link
-            if (title && link) {
-                // Save the data in the scrapedData db
-                db.scrapedData.save({
-                        title: title,
-                        link: link
-                    },
-                    function(error, saved) {
-                        // If there's an error during this query
-                        if (error) {
-                            // Log the error
-                            console.log(error);
-                        }
-                        // Otherwise,
-                        else {
-                            // Log the saved data
-                            console.log(saved);
-                        }
-                    });
-            }
-        });
+      // Save an empty result object
+      var result = {};
+
+      // Add the text and href of every link, and save them as properties of the result object
+      result.title = $(this).children("a").text();
+      result.link = $(this).children("a").attr("href");
+
+      // Using our Article model, create a new entry
+      // This effectively passes the result object to the entry (and the title and link)
+      var entry = new Article(result);
+
+            // Now, save that entry to the db
+      entry.save(function(err, doc) {
+        // Log any errors
+        if (err) {
+          console.log(err);
+        }
+        // Or log the doc
+        else {
+          console.log(doc);
+        }
+      });
+
     });
+  });
+  // Tell the browser that we finished scraping the text
+  res.send("Scrape Complete");
+});
+
+// This will get the articles we scraped from the mongoDB
+app.get("/articles", function(req, res) {
+  // Grab every doc in the Articles array
+  Article.find({}, function(error, doc) {
+    // Log any errors
+    if (error) {
+      console.log(error);
+    }
+    // Or send the doc to the browser as a json object
+    else {
+      res.json(doc);
+    }
+  });
+});
 
     // This will send a "Scrape Complete" message to the browser
     res.send("Your news belongs to Mongo.");
-});
 
+// Grab an article by it's ObjectId
+app.get("/articles/:id", function(req, res) {
+  // Using the id passed in the id parameter, prepare a query that finds the matching one in our db...
+  Article.findOne({ "_id": req.params.id })
+  // ..and populate all of the notes associated with it
+  .populate("note")
+  // now, execute our query
+  .exec(function(error, doc) {
+    // Log any errors
+    if (error) {
+      console.log(error);
+    }
+    // Otherwise, send the doc to the browser as a json object
+    else {
+      res.json(doc);
+    }
+  });
+});
 
 // Listen on port 3000
 app.listen(3000, function() {
