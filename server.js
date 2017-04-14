@@ -8,7 +8,9 @@ var express = require("express");
 var bodyParser = require("body-parser");
 var logger = require("morgan");
 var mongoose = require("mongoose");
-
+// Requiring our Note and Article models(UNTIL HANDLEBARS)
+var Note = require("./models/Note.js");
+var Article = require("./models/Article.js");
 // Set mongoose to leverage built in JavaScript ES6 Promises
 mongoose.Promise = Promise;
 
@@ -46,21 +48,6 @@ app.get("/", function(req, res) {
     res.send("Hello, User!");
 });
 
-// Retrieve data from the db
-app.get("/all", function(req, res) {
-    // Find all results from the scrapedData collection in the db
-    db.scrapedData.find({}, function(error, found) {
-        // Throw any errors to the console
-        if (error) {
-            console.log(error);
-        }
-        // If there are no errors, send the data to the browser as a json
-        else {
-            res.json(found);
-        }
-    });
-});
-
 // A GET request to scrape the echojs website
 app.get("/scrape", function(req, res) {
   // First, we grab the body of the html with request
@@ -96,7 +83,7 @@ app.get("/scrape", function(req, res) {
     });
   });
   // Tell the browser that we finished scraping the text
-  res.send("Scrape Complete");
+     res.send("Your news belongs to Mongo.");
 });
 
 // This will get the articles we scraped from the mongoDB
@@ -112,10 +99,10 @@ app.get("/articles", function(req, res) {
       res.json(doc);
     }
   });
+
 });
 
-    // This will send a "Scrape Complete" message to the browser
-    res.send("Your news belongs to Mongo.");
+
 
 // Grab an article by it's ObjectId
 app.get("/articles/:id", function(req, res) {
